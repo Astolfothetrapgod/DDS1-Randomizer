@@ -1,0 +1,49 @@
+# Default preset of the DDS1 Randomizer. Every key is optional.
+# Usage: python -m randomizer ORIGINAL_ISO OUTPUT_ISO --preset presets/default.toml
+# To customize your game, copy this file, edit it and pass the copy with --preset.
+
+[enemies]
+shuffle = true              # shuffle the enemies of random battles
+level_spread = 5            # tolerated level spread for species that are not rescaled
+allow_identity = false      # may a species replace itself?
+scaling = true              # rescale the replacement to the level of the species it replaces
+
+[enemy_skills]
+mode = "adapt"              # "adapt": damage spells of rescaled enemies brought to the rank of their level
+                            # "random": skills drawn at random (same type, same rank, among those an enemy
+                            #   already uses in the game)
+                            # "original": unchanged
+
+[affinities]
+mode = "shuffle"            # "shuffle": each species keeps its values, moved to other elements of the same
+                            #   group (damage / instant death / ailments)
+                            # "random": values drawn according to their frequency in the game
+                            # "original": unchanged
+protect_physical = false    # true: never "null / repel / drain" on physical
+
+[bosses]
+shuffle = true              # true: single-unit bosses change places, rescaled to the level of their new place
+                            #   (HP/stats on the level curve, damage spells adapted, reserved reinforcements
+                            #   rescaled; unique skills kept)
+
+[mantras]
+mode = "tiered"             # "tiered": skills redistributed between mantras of similar required level
+                            # "random": any skill in any mantra (chaotic)
+                            # "original": mantras unchanged
+level_spread = 5            # tolerated level spread in "tiered" mode
+guarantee_heal = true       # true: Dia always in a level-1 mantra
+guarantee_group_heal = true # true: Media always in a mantra of level 15 or lower
+
+[chests]
+mode = "shuffle"            # "shuffle": contents redistributed between chests of the same type (chest / gem
+                            #   box / Macca); "random": item drawn among those this type of chest contains in
+                            #   the game; "original": unchanged.
+                            # Key items and trapped chests are never touched.
+
+[shops]
+mode = "tiered"             # "tiered": each sold item becomes an item of similar value (same tab);
+                            # "random": any buyable item; "original": unchanged.
+                            # Same mapping in every shop and in the Karma Temple bonuses:
+                            #   the stock grows like in the original game.
+value_spread = 4            # tolerated value-rank spread in "tiered" mode
+keep_ration = true          # true: Ration always stays for sale

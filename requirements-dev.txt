@@ -1,0 +1,3 @@
+-r requirements.txt
+pytest>=8
+capstone>=5  # reading MIPS code (research only)

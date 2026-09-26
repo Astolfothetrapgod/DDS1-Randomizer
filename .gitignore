@@ -1,0 +1,33 @@
+# --- Game data: NEVER in git (copyright Atlus) ---
+# (no trailing slash: also ignores symbolic links with these names)
+/iso
+/extracted
+/work
+*.iso
+*.ISO
+*.IMG
+*.DDT
+*.TBL
+*.elf
+*.ELF
+SLUS_*
+
+# Ghidra project (large binary database, contains disassembled game code)
+ghidra/
+
+# Downloaded third-party tools (reinstallable)
+tools/
+
+# PCSX2: savestates and memory dumps
+*.p2s
+*.bin
+*.raw
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Misc
+*.bak
+.directory
