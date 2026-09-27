@@ -20,7 +20,8 @@ summoned unit makes the boss ineligible.
 import random
 from dataclasses import dataclass, field
 
-from .enemies import (Result, actions, own_script, raise_mp, random_encounters, rescale_unit, species_pool)
+from .enemies import (Result, actions, own_script, raise_mp, random_encounters, rescale_unit, skill_changes_text,
+                      species_pool)
 from .scaling import fit
 from .skills import families
 from .tables import AiTable, Encounters, Skill, SkillTable, Unit, UnitTable
@@ -215,6 +216,8 @@ def spoiler(res: BossResult, units: list[Unit], table: UnitTable, skills: list[S
                                                    for x, lv in res.reinforcements[b])
         if b in res.summons:
             line += " | summons " + ", ".join(f"{units[x].name} → {units[y].name}" for x, y in res.summons[b])
+        if skills and res.units and (text := skill_changes_text(res.units, b, skills)):
+            line += " | " + text
         lines.append(line)
     if res.unique and skills:
         lines.append("Unique skills (power follows the level of the new place):")

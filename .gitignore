@@ -24,6 +24,9 @@ tools/
 *.raw
 
 # Python
+/build
+/dist
+*.spec
 .venv/
 __pycache__/
 *.pyc

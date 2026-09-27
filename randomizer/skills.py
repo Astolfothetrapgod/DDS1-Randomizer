@@ -4,8 +4,15 @@ A skill itself is never modified (it is shared by enemies, bosses and party memb
 record, a skill is replaced by a member of the same family (element, cost, target, hits, nature,
 effect).
 
-Only families of damage spells (nature 1) or percentage spells (nature 8) with at least two members
-of different power are adapted; the rest is kept. Nature 8 = removes a percentage of HP (🟡, game
+Only families of damage spells (nature 1), percentage spells (nature 8) and instant-death spells
+(nature 0, darkness, death effect 0x4000: Mudo < Mudoon, Mamudo < Mamudoon, ranked by the chance of the
+effect, +0x25) with at least two members of different strength are adapted; the rest is kept.
+
+Special versions (element 256 + base element, e.g. Maragidyne 434 cast by Isis, Queen Mab, the Oni): boosted
+copies of a normal spell of the same name (cheaper, more accurate, doubled effect chance, sometimes more
+power; NOTES "Special versions"). They take the rank of their normal version; when the rank changes they
+become the normal member of the new rank (cast by ordinary enemies: animation guaranteed), only if the
+direction holds against the special's own strength; same rank: the special version is kept. Nature 8 = removes a percentage of HP (🟡, game
 texts: Hama 50 "Reduce HP by half", Hamaon 66 "Reduce HP greatly", Seraph Lore 80 "Greatly reduces
 HP"): the power is that percentage, so the rank is in it.
 
@@ -19,19 +26,42 @@ from collections import defaultdict
 from .tables import Skill
 
 DAMAGE, PERCENT = 1, 8
+DARK, DEATH = 9, 0x4000         # element; effect mask (u16 +0x26: cured by Recarm, like the other masks)
 
 
-def families(skills: list[Skill]) -> dict[int, list[Skill]]:
-    """Skill -> members of its family sorted by power (adaptable families only)."""
+class Families(dict):
+    """Skill id -> members of its family sorted by strength (adaptable families only). A special version
+    maps to the family of its normal version without being a member; `special[id]` = (normal id, skill)."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.special: dict[int, tuple[int, Skill]] = {}
+
+
+def families(skills: list[Skill]) -> Families:
+    """Skill -> members of its family sorted by strength (adaptable families only)."""
     groups = defaultdict(list)
     for s in skills:
-        if s.name and s.nature in (DAMAGE, PERCENT) and s.power > 0 and s.element < 255:
+        if not s.name or s.element >= 255:
+            continue
+        if (s.nature in (DAMAGE, PERCENT) and s.power > 0) or \
+                (s.nature == 0 and s.element == DARK and s.ailment == (1, DEATH) and s.chance > 0):
             groups[s.family].append(s)
-    out = {}
+    out = Families()
     for members in groups.values():
-        if len({m.power for m in members}) >= 2:
-            members = sorted(members, key=lambda m: (m.power, m.id))
+        if len({m.strength for m in members}) >= 2:
+            members = sorted(members, key=lambda m: (m.strength, m.id))
             out.update({m.id: members for m in members})
+    normal = {}
+    for s in skills:
+        if s.name and s.id in out:
+            normal.setdefault((s.name, s.element), s)
+    for s in skills:
+        if s.name and 256 <= s.element < 512:
+            n = normal.get((s.name, s.element - 256))
+            if n and (n.nature, n.target) == (s.nature, s.target):
+                out[s.id] = out[n.id]
+                out.special[s.id] = (n.id, s)
     return out
 
 
@@ -43,9 +73,16 @@ def adapt(sid: int, from_level: int, to_level: int, fam: dict[int, list[Skill]],
         return sid
     members = fam[sid]
     n = len(members)
-    current = members.index(next(m for m in members if m.id == sid))
+    special = getattr(fam, "special", {}).get(sid)
+    key = special[0] if special else sid
+    current = members.index(next(m for m in members if m.id == key))
     target = min(n - 1, max(0, int(n * (to_level - lo) / max(1, hi - lo))))
-    pos = min(target, current) if to_level < from_level else max(target, current)
+    down = to_level < from_level
+    pos = min(target, current) if down else max(target, current)
+    if special:
+        new, s = members[pos], special[1]
+        if pos == current or (new.strength > s.strength if down else new.strength < s.strength):
+            return sid                          # same rank, or the normal version would go against the direction
     return members[pos].id
 
 

@@ -50,6 +50,18 @@ executable (`randomizer.iso.pcsx2_crc`); a cheat can also be enabled in
 `~/.config/PCSX2/gamesettings/SLUS-20974_<CRC>.ini` (`[EmuCore] EnableCheats = true` and
 `[Cheats] Enable = <name of the .pnach section>`).
 
+## Standalone Windows version
+
+- `randomizer/generate.py` does the whole generation; `__main__.py` (command line) and `gui.py` (tkinter window)
+  only build an `Options` object and call it. `python -m randomizer` without arguments opens the window.
+- `packaging/launcher.py` is the PyInstaller entry point. `.github/workflows/windows.yml` builds
+  `DDS1-Randomizer.exe` on GitHub's Windows machines (PyInstaller cannot build a Windows executable from
+  Linux) and attaches `DDS1-Randomizer-<version>-windows.zip` (exe, README, LICENSE, presets) to each published
+  release; "Run workflow" in the Actions tab builds it without a release (artifact).
+- Local check (same PyInstaller, Linux binary): `pip install -r requirements-build.txt`, then
+  `pyinstaller --onefile --windowed --name DDS1-Randomizer --paths . packaging/launcher.py`; the binary must
+  produce the same ISO byte for byte as `python -m randomizer` for the same seed and options.
+
 ## Analysis scripts
 
 ```bash

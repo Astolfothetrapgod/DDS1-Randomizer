@@ -52,6 +52,7 @@ class Result:
     scaled: dict[int, Unit] = field(default_factory=dict)   # replacement -> new record
     exponents: Exponents | None = None
     skill_changes: dict[int, list[tuple[int, int]]] = field(default_factory=dict)  # replacement -> [(old, new)]
+    ai_skill_changes: dict[int, dict[int, int]] = field(default_factory=dict)   # unit -> {old: new} (AI lists, script)
     ai_changes: int = 0                                     # AI actions replaced
     mp_raised: dict[int, tuple[int, int]] = field(default_factory=dict)  # unit -> (MP before, after)
     script_changes: int = 0                                 # script arguments rewritten (casts, checks)
@@ -180,22 +181,40 @@ def rewrite_skills(table: UnitTable, ai: AiTable | None, unit: int, f, result: R
         table.set_skills(unit, new)
     if ai is None:
         return [(x, y) for x, y in zip(old, new) if x != y]
+    seen = result.ai_skill_changes.setdefault(unit, {})
     for l, k, _prob, action in ai.entries(unit):
         if (adapted := f(action)) != action:
             ai.set_action(unit, l, k, adapted)
             result.ai_changes += 1
+            seen[action] = adapted
     proc = ai.script(unit)
     if proc and (p := own_script(ai, unit, allowed)):
         # several shuffled units share this script (AllEscape_MeriBeru: no casts):
         # the first rewrite wins, the next ones find already replaced skills
         for k in p.casts + p.checks:
             if (adapted := f(ai.flow.arg(k))) != ai.flow.arg(k):
+                seen[ai.flow.arg(k)] = adapted
                 ai.flow.set_arg(k, adapted)
                 result.script_changes += 1
     elif proc and (ai.flow.procedures[proc].casts or ai.flow.procedures[proc].summons):
         ai.set_script(unit, 0)
         result.detached.append(unit)
+    if not seen:
+        del result.ai_skill_changes[unit]
     return [(x, y) for x, y in zip(old, new) if x != y]
+
+
+def skill_changes_text(result: Result, unit: int, skills: list[Skill]) -> str:
+    """Record changes (what Analyze shows), then AI-only changes (lists, script). * = special version."""
+    def name(i: int) -> str:
+        return skills[i].name + ("*" if skills[i].element >= 256 else "") if i < len(skills) else hex(i)
+    record = result.skill_changes.get(unit, [])
+    parts = [", ".join(f"{name(x)} → {name(y)}" for x, y in record)] if record else []
+    done = set(record)
+    ai_only = [(x, y) for x, y in sorted(result.ai_skill_changes.get(unit, {}).items()) if (x, y) not in done]
+    if ai_only:
+        parts.append("AI: " + ", ".join(f"{name(x)} → {name(y)}" for x, y in ai_only))
+    return "  | ".join(parts)
 
 
 def rescale_unit(table: UnitTable, ai: AiTable | None, unit: Unit, level: int, karma: int, macca: int,
@@ -279,6 +298,8 @@ def spoiler(result: Result, units: list[Unit], skills: list[Skill] | None = None
         lines.append("Measured exponents (value ≈ c × level^k): HP %.2f, MP %.2f, " % (e.hp, e.mp)
                      + ", ".join(f"{s} {k:.2f}" for s, k in zip(("St", "Vi", "Ma", "Ag", "Lu"), e.stats)))
         lines.append("")
+    lines.append("Skills: record changes (shown by Analyze), then \"AI:\" = changes only in the AI lists or script;"
+                 " * = special (boosted) version of a spell")
     lines.append("Original species                    -> Replacement                           Δlv   Rescaling")
     for a in sorted(result.mapping, key=lambda i: (units[i].level, i)):
         b = result.mapping[a]
@@ -288,8 +309,8 @@ def spoiler(result: Result, units: list[Unit], skills: list[Skill] | None = None
             line += f"  -> lv {s.level}, HP {s.hp}, MP {s.mp}, stats {'/'.join(map(str, s.stats))}"
         if b in result.mp_raised:
             line += "  | MP %d → %d" % result.mp_raised[b]
-        if skills and b in result.skill_changes:
-            line += "  | " + ", ".join(f"{skills[x].name} → {skills[y].name}" for x, y in result.skill_changes[b])
+        if skills and (text := skill_changes_text(result, b, skills)):
+            line += "  | " + text
         lines.append(line)
     lines += ["", f"AI scripts: {result.script_changes} arguments rewritten (cast skills, skill checks)"]
     lines += [f"  {label(u)}: script shared with a scripted battle, detached (follows its AI lists)"

@@ -156,9 +156,15 @@ class Skill:
     cost: int
     target: int         # 0 = one, 1 = all
     hits: tuple[int, int]
-    nature: int         # 1 = damage, 8 = removes a percentage of HP (Hama family), 0 = ailment only
+    nature: int         # 1 = damage, 8 = removes a percentage of the current HP (Hama family), 0 = effect only
     power: int
-    ailment: tuple[int, int]   # (active, mask); the chance is not part of the family
+    ailment: tuple[int, int]   # (active +0x24, u16 mask +0x26: 0x4000 death, 0x0800 stone…); chance not included
+    chance: int = 0     # +0x25: chance (%) of the side effect (Mudo 40, Mudoon 60, Mamudo 20, Mamudoon 30)
+
+    @property
+    def strength(self) -> int:
+        """What ranks a skill in its family: the power, or for an effect-only skill (Mudo) the chance."""
+        return self.chance if self.nature == 0 else self.power
 
     @property
     def family(self) -> tuple:
@@ -182,7 +188,8 @@ def read_skills(skill_tbl: bytes, msg_tbl: bytes) -> list[Skill]:
         skills.append(Skill(i, names[i] if i < len(names) else "",
                             struct.unpack_from("<H", d, elem_off + 2 * i)[0],
                             d[e + 0x03], d[e + 0x04], d[e + 0x08], (d[e + 0x14], d[e + 0x15]), d[e + 0x16],
-                            struct.unpack_from("<H", d, e + OFF_POWER)[0], (d[e + 0x24], d[e + 0x26])))
+                            struct.unpack_from("<H", d, e + OFF_POWER)[0],
+                            (d[e + 0x24], struct.unpack_from("<H", d, e + 0x26)[0]), d[e + 0x25]))
     return skills
 
 

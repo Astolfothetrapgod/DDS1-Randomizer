@@ -147,9 +147,9 @@ def test_adapted_skills(game, seed):
         for old, new in changes:
             assert new in fam and fam[new] is fam[old]
             if units[inverse[b]].level < units[b].level:
-                assert skills[new].power <= skills[old].power
+                assert skills[new].strength <= skills[old].strength
             else:
-                assert skills[new].power >= skills[old].power
+                assert skills[new].strength >= skills[old].strength
 
 
 def script_args(ai):

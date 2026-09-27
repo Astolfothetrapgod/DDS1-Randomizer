@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 
 from randomizer.bosses import EXCLUDED_ENCOUNTERS, randomize_bosses, scale_unique_skills, unique_power
-from randomizer.enemies import own_script, randomize
+from randomizer.enemies import actions, own_script, randomize
 from randomizer.iso import GameISO
 from randomizer.options import Options
 from randomizer.skills import families
@@ -107,7 +107,7 @@ def test_boss_spells_adapted(game, seed):
                 assert new == old
             elif new != old:
                 assert fam[new] is fam[old]
-                assert (skills[new].power <= skills[old].power) if down else (skills[new].power >= skills[old].power)
+                assert (skills[new].strength <= skills[old].strength) if down else (skills[new].strength >= skills[old].strength)
 
 
 def test_with_the_enemy_shuffle(game):
@@ -212,3 +212,69 @@ def test_unique_skills_option(tmp_path):
     p.write_text('[bosses]\nunique_skills = "half"\n')
     with pytest.raises(ValueError, match="bosses.unique_skills"):
         Options.from_toml(p)
+
+
+def test_effect_mask_and_death_families(game):
+    """Effect mask = u16 at +0x26 (each cure spell has the bit of the ailment it cures); instant-death
+    spells form families ranked by chance; families no longer merged by the old 1-byte mask."""
+    skills = game[3]
+    named = {}
+    for s in skills:                                             # first occurrence (Mamudo 67, not the special 456)
+        if s.name:
+            named.setdefault(s.name, s)
+    assert named["Mudo"].ailment == (1, 0x4000) and named["Bufu"].ailment == (1, 0x0004)
+    for ailment, cure in (("Mudo", "Recarm"), ("Stone Gaze", "Petradi"), ("Curse", "Cursedi"),
+                          ("Stun Needle", "Paraladi")):
+        assert named[ailment].ailment[1] == named[cure].ailment[1]
+    fam = families(skills)
+    assert [m.name for m in fam[named["Mudo"].id]] == ["Mudo", "Mudoon"]
+    assert [m.name for m in fam[named["Mamudo"].id]] == ["Mamudo", "Mamudoon"]
+    assert named["Mamudo"].chance < named["Mamudoon"].chance
+    assert named["Death Blow"].id not in fam                     # curse: no longer with Mind Scream (nerve)
+    assert named["Chi Blast"].id not in fam                      # charm: no longer with Power Wave
+    assert [m.name for m in fam[named["Mind Scream"].id]] == ["Mind Scream", "Xeros-Beat"]
+
+
+def test_beelzebub_mamudo(game):
+    """Seed 155 (showcase): Beelzebub 272 in Hayagriva's place (level 8) casts Mamudo, not Mamudoon."""
+    skills = game[3]
+    _, _, ai, res = run(game, 155, with_enemies=True)
+    assert res.mapping[258] == 272
+    names = {skills[s].name for s in actions(ai, 272) if s < len(skills)}
+    p = own_script(ai, 272)
+    if p:
+        names |= {skills[ai.flow.arg(k)].name for k in p.casts if ai.flow.arg(k) < len(skills)}
+    assert "Mamudo" in names and "Mamudoon" not in names
+
+
+def test_special_versions(game):
+    """Special versions (element 256 + x) take the rank of their normal version; rank change -> normal
+    member of the new rank (cast by an ordinary enemy: animation), never against the direction."""
+    from randomizer.skills import adapt
+    _, _, units, skills, ai_data = game
+    fam = families(skills)
+    ai = AiTable(ai_data)
+    cast = set()
+    for u in range(len(units)):
+        cast |= set(actions(ai, u))
+        p = own_script(ai, u)
+        if p:
+            cast |= {ai.flow.arg(k) for k in p.casts}
+    assert fam.special[434][0] == 6 and fam[434] is fam[6]              # Maragidyne* -> Maragidyne
+    assert len(fam.special) == 22
+    for sid in fam.special:
+        assert all(m.id in cast for m in fam[sid])                        # every possible target is enemy-cast
+    assert adapt(442, 40, 5, fam, 1, 69) == 22                            # Maziodyne* moving down -> Mazio
+    assert adapt(442, 60, 65, fam, 1, 69) == 442                          # same rank: special kept
+    assert adapt(456, 20, 60, fam, 1, 69) == 456                          # Mamudo* 40 % up: Mamudoon (30 %) weaker
+
+
+def test_spoiler_shows_ai_changes(game):
+    """Seed 14: Queen Mab's AI-only changes (special versions) appear in the spoiler, marked with *."""
+    from randomizer.enemies import spoiler
+    _, unit_data, units, skills, ai_data = game
+    enc, table, ai = Encounters(game[0]), UnitTable(unit_data), AiTable(ai_data)
+    r = randomize(enc, table, units, 14, None, skills, ai)
+    assert r.ai_skill_changes[44][442] == 22                               # Maziodyne* -> Mazio in the AI
+    line = next(l for l in spoiler(r, units, skills).splitlines() if l.startswith("Empusa"))
+    assert "AI: " in line and "Maziodyne* → Mazio" in line

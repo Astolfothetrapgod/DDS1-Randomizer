@@ -28,10 +28,22 @@ listing every change.
   The program checks the files it uses and refuses any other version, or an already randomized ISO.
   Reference (Redump dump #253): 4,539,547,648 bytes, MD5 `ae4330140ef56f9eb1c689b9bb383401`,
   SHA-1 `f022cc27d2c333db64f1f1a46b312aafc5ce632e`. The `--verify-iso` option checks the whole ISO.
-- **Python 3.11 or newer** (tested with Python 3.14).
+- **Windows, easiest**: nothing else (see "Windows without Python" below). **Otherwise**: Python 3.11 or
+  newer (tested with Python 3.14).
 - **5 GB of free disk space** for the randomized ISO.
 
-## Installation
+## Windows without Python
+
+On the [Releases page](https://github.com/Astolfothetrapgod/DDS1-Randomizer/releases), download
+`DDS1-Randomizer-<version>-windows.zip`, extract it and double-click **DDS1-Randomizer.exe**. A window opens:
+choose your ISO, keep or change the seed and the options, then click **Randomize!**. The spoiler log can be
+opened from the window when it is done.
+
+The executable is not signed (signing costs money): Windows SmartScreen may show "Windows protected your PC".
+Click **More info** > **Run anyway**. Some antivirus programs also flag programs made with PyInstaller by
+mistake; the source code and the build (GitHub Actions, `.github/workflows/windows.yml`) are public.
+
+## Installation (with Python, Linux or Windows)
 
 Download the project from <https://github.com/Astolfothetrapgod/DDS1-Randomizer> (green **Code** button >
 **Download ZIP**, then extract it; or `git clone`), then open a terminal in that folder.
@@ -52,6 +64,10 @@ py -m venv .venv
 ```
 
 ## Usage
+
+Without arguments, `python -m randomizer` opens the same window as the Windows executable (on Linux, it
+needs the Tk library: package `tk` on Arch-based distributions, `python3-tk` on Debian/Ubuntu). The command
+line gives access to every option:
 
 **Linux:**
 
