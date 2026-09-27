@@ -16,18 +16,19 @@ from pathlib import Path
 
 from . import __version__
 from .affinities import randomize_affinities
-from .bosses import randomize_bosses
+from .bosses import randomize_bosses, scale_unique_skills
 from .bosses import spoiler as boss_spoiler
 from .chests import CHEST_FILE, ChestTable, randomize_chests, read_item_names
 from .chests import spoiler as chest_spoiler
 from .enemies import random_encounters, randomize, species_pool, spoiler
 from .iso import REDUMP_SIZE, GameISO
-from .mantras import ELF, MantraTable, randomize_mantras, read_mantra_names
+from .mantras import ELF, N_MANTRAS, MantraTable, randomize_mantras, read_mantra_names
 from .mantras import spoiler as mantra_spoiler
 from .options import Options
 from .shops import ShopTable, item_values, randomize_shops
 from .shops import spoiler as shop_spoiler
-from .tables import AiTable, AnalyzeText, Encounters, UnitTable, read_skill_names, read_skills, read_units
+from .tables import (AiTable, AnalyzeText, Encounters, SkillTable, UnitTable, read_skill_names, read_skills,
+                     read_units)
 
 
 def main() -> None:
@@ -58,6 +59,8 @@ def run() -> None:
     ap.add_argument("--no-bosses", action="store_true", help="do not shuffle bosses")
     ap.add_argument("--boss-hp", choices=("curve", "place"),
                     help="HP of moved bosses: level curve (default) or HP of the boss they replace (easier)")
+    ap.add_argument("--boss-unique-skills", choices=("keep", "power"),
+                    help="unique boss skills: unchanged (default) or power following the level of the new place")
     ap.add_argument("--mantras", choices=("tiered", "random", "original"), help="mantra skills")
     ap.add_argument("--no-heal-guarantee", action="store_true",
                     help="guarantee neither Dia at level 1 nor Media at level 15 or lower")
@@ -86,6 +89,8 @@ def run() -> None:
         opts.bosses.shuffle = False
     if a.boss_hp:
         opts.bosses.hp = a.boss_hp
+    if a.boss_unique_skills:
+        opts.bosses.unique_skills = a.boss_unique_skills
     if a.mantras:
         opts.mantras.mode = a.mantras
     if a.no_heal_guarantee:
@@ -127,6 +132,11 @@ def run() -> None:
         if opts.bosses.shuffle else None
     skill_names = read_skill_names(msg)
     mantras = MantraTable(game.read(ELF), read_mantra_names(msg))
+    skill_table = SkillTable(game.read("battle/SKILL.TBL"))
+    if boss and opts.bosses.unique_skills == "power":
+        # skills of the mantras (the party's): never modified; the mantra shuffle only permutes them
+        protected = {s for m in range(N_MANTRAS) for s in mantras.get(m).skills}
+        scale_unique_skills(boss, skill_table, ai, units, skills, protected)
     item_names = read_item_names(msg)
     chests = ChestTable(game.read(CHEST_FILE))
     cres = randomize_chests(chests, item_names, seed, opts.chests.mode)
@@ -146,6 +156,7 @@ def run() -> None:
     out.write("battle/MSG.TBL", bytes(text.data))
     out.write(ELF, bytes(mantras.data))
     out.write(CHEST_FILE, bytes(chests.data))
+    out.write("battle/SKILL.TBL", bytes(skill_table.data))
 
     log = a.dst.with_name(f"{a.dst.stem}_spoiler_{seed}.txt")
     def shown(lines: list[str]) -> str:
@@ -155,7 +166,7 @@ def run() -> None:
         f"  {units[i].name:<16} {shown(b)}  ->  {shown(a_)}" for i, (b, a_) in sorted(aff.items())]
     log.write_text(f"DDS1 Randomizer {__version__}\n" + spoiler(result, units, skills, opts.describe())
                    + "\n".join(aff_lines) + "\n"
-                   + (boss_spoiler(boss, units, table) if boss else "")
+                   + (boss_spoiler(boss, units, table, skills) if boss else "")
                    + mantra_spoiler(mres, mantras, skill_names) + chest_spoiler(cres, item_names)
                    + shop_spoiler(sres, values, item_names), encoding="utf-8")
     print(f"seed {seed}: {len(result.mapping)} species ({len(result.scaled)} rescaled), "
@@ -163,6 +174,7 @@ def run() -> None:
           f"script skills adapted, {sum(map(len, result.summons.values()))} summons replaced, "
           f"{len(aff)} species with new affinities"
           + (f", {len(boss.mapping)} bosses moved" if boss else "")
+          + (f", {len(boss.unique)} unique boss skills rescaled" if boss and boss.unique else "")
           + f", mantras: {opts.mantras.mode}, {len(cres.changes)} chests modified, shops: {opts.shops.mode}")
     print(f"spoiler: {log}")
 

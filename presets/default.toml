@@ -28,6 +28,9 @@ shuffle = true              # true: single-unit bosses change places, rescaled t
 hp = "curve"                # "curve": HP on the level curve (a sturdy boss stays sturdy: Beelzebub as the
                             #   first boss is very hard)
                             # "place": HP of the boss it replaces (easier; level, stats, skills unchanged)
+unique_skills = "keep"      # "keep": unique boss skills (Seraph Lore, Celestial Ray…) keep their power
+                            # "power": their power follows the level of the new place (a percentage never
+                            #   goes up); only skills used by that boss alone and by no mantra
 
 [mantras]
 mode = "tiered"             # "tiered": skills redistributed between mantras of similar required level

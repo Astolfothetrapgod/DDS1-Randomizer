@@ -24,6 +24,8 @@ Preset file (every key is optional; see presets/default.toml for the commented v
     shuffle = true              # shuffle single-unit bosses (rescaled to their new place)
     hp = "curve"                # "curve": HP on the level curve (a sturdy boss stays sturdy)
                                 # "place": HP of the boss it replaces (easier: late bosses placed early)
+    unique_skills = "keep"      # "keep": unique boss skills unchanged (Seraph Lore, Celestial Ray…)
+                                # "power": their power follows the level of the new place
 
     [mantras]
     mode = "tiered"             # "tiered": skills redistributed between mantras of similar required level
@@ -84,9 +86,11 @@ class Affinities:
 class Bosses:
     shuffle: bool = True
     hp: str = "curve"
+    unique_skills: str = "keep"
 
     def __post_init__(self) -> None:
         _check("bosses", self.hp, ("curve", "place"), "hp")
+        _check("bosses", self.unique_skills, ("keep", "power"), "unique_skills")
 
 
 @dataclass

@@ -333,6 +333,13 @@ Result: ✅ **26 random battles, all with a single enemy among the 5 imposed one
 
 **Boss HP option (v7, `[bosses] hp`, `--boss-hp`)** — the tester's screenshot run (seed 155): Beelzebub in Hayagriva's place (level 8, 1,001 HP on the curve, unique skills) is not beatable with the starting party without grinding. `hp = "curve"` (default, unchanged) or `"place"`: the new boss takes the **HP of the boss it replaces** (Beelzebub 600, Huang Long in Camazotz 2's place 666 instead of 6,142); level, MP, stats, skills, rewards and reinforcements stay those of the curve. No random draw: the rest of the seed is identical (checked: seed 155, only the boss HP lines of the spoiler change; test `test_hp_of_the_place` on 20 seeds). ✅ Validated in game (section 8, "Boss HP test"): Beelzebub 600/600 HP in battle.
 
+**Unique boss skills option (v8, `[bosses] unique_skills = "keep" | "power"`, `--boss-unique-skills`)** — the tester's choice (2026-09-27): "power" = the unique skill keeps its name and animation, its **power** (SKILL.TBL block 1 +0x18, ✅ validated in game) follows the level of the new place. Default "keep" (the earlier decision).
+- Inventory of the 24 places: most boss spells are in adaptable families and were already adapted (Beelzebub at level 8: Mazionga → Mazio, Megidolaon → Megido, Mahamaon → Mahama, Mind Scream → Death Blow; what made him hard is **Mamudoon**, instant death, nature 0, not adapted: no power to rank ❓ accuracy field). **Eligible = 14 skills** cast by one boss only and in no mantra: Skewer, Fire Storm (Hayagriva), Whirlwind, Seraph Lore (Usas), Trisagion, Fimbulvet, Narukami, Vayaviya, Titan (Isis 268), Fire of Sinai (Metatron), Hima Alaya (Vasuki), Cocytus, Frost Rush (King Frost), Celestial Ray (Huang Long). Excluded: Spiral Edge (the 3 Camazotz, different places), Shock Wave, Raving Slash, Mad Rush, Avalanche, Foul Breath (in mantras = party skills). The mantra shuffle only permutes the mantras' skills (both modes): the protected set does not change.
+- Names exist twice: Celestial Ray 89 (200) / **424** (250, Huang Long), Fire of Sinai 95 (100) / **374** (90, Metatron); 89 and 95 are cast by no enemy (party or event versions ❓): never touched.
+- ❌ Rejected rule: rank of the reference family (like the enemies' adaptation). Too coarse for a power: Celestial Ray at level 8 stayed at 146 (> Megidolaon 120, the almighty family starts high: Megido 70), Trisagion jumped 256 → 419 between levels 45 and 55 (slice change), Seraph Lore never moved (2-member family).
+- ✅ Chosen rule: continuous curve **power × (new level / old level)^k**, k measured by log-log fit on the (species level, power) pairs of the 90 ordinary species' AI: magic on all targets 0.71 (R² 0.52, 70 pairs), on one target 0.39 (R² 0.49, 65), percentage 0.24 (R² 0.50, 15), physical 0.21 (R² 0.11: weak). A percentage never goes up. Examples: Celestial Ray at level 8 = **47** (Fire Storm, designed by Atlus for level 8: 45), Seraph Lore at level 8 = **64 %**, Fire of Sinai at level 15 = 27, Fire Storm at level 55 = 177. No random draw: the rest of the seed is identical (test).
+- ❓ Found on the way: the "special versions" of Isis' -dyne spells (element 256 + x: Maragidyne 258, Mabufudyne 259…) are also cast by ordinary species (Isis 2, Queen Mab 44, Sui-Ki 81…) and are **adapted nowhere** (families only take elements < 255): a rescaled Isis placed early keeps a 90-power Maragidyne. To study: can they join the family of their base element?
+
 **Boss test 1** (`scripts/test_boss.py`): encounter 258 (Hayagriva, level 8, 600 HP, boss battle 901) → **Usas** (261, level 20, 2000 HP) rescaled to level 8: 854 HP, stats 8/11/9/8/3; Hell Thrust → Body Rush (record and AI); keeps Whirlwind, Hama, Hamaon, Marin Karin, Closdi/Patra. +0x26 = 901 unchanged. Questions: Usas' model and name? normal battle? **cutscene and story continuing after the victory without freezing**? Result: see section 8.
 
 ---
@@ -413,8 +420,8 @@ v2.6 rules (`randomizer/enemies.py`):
 | +0x08 | target: 0 = one, 1 = all | Maragi, Mabufu, Mahama 1 | 🟡 |
 | +0x11 | accuracy (%) | Agi 99, Hama 65, Mahama 40 | 🟡 |
 | +0x14 / +0x15 | min / max hits | Breath, Mad Rush: 2 / 4 | 🟡 |
-| +0x16 | nature: 1 = damage, 8 = removes a **percentage of HP** (Hama family, see "Boss test 2"), 0 = ailment only (Mudo) | | 🟡 |
-| +0x18 | **power** (for nature 8: the percentage) | Agi 30, Agilao 60, Agidyne 100; Maragi 25, Maragidyne 90; Bufu 25, Bufula 55, Bufudyne 95; Hama 50, Hamaon 66 | 🟡 consistent progression |
+| +0x16 | nature: 1 = damage, 8 = removes a **percentage of the current HP**, rounded down (Hama family), 0 = ailment only (Mudo) | | ✅ nature 8 (unique skills test) |
+| +0x18 | **power** (for nature 8: the percentage) | Agi 30, Agilao 60, Agidyne 100; Maragi 25, Maragidyne 90; Bufu 25, Bufula 55, Bufudyne 95; Hama 50, Hamaon 66 | ✅ read by the game (unique skills test: Seraph Lore 80 → 64 applied exactly) |
 | +0x24 / +0x25 / +0x26 | side effect: active / chance % / mask | Bufu 1/15/0x04 (freeze), Zio 1/15/0x02 (shock), Venom Claw 1/35/0x80 (poison), Mudo 1/40/0x40 (death) | 🟡 |
 
 ### Block 0 = **element / category**: 608 × u16 — ✅ consistent groups over the 424 named skills
@@ -494,6 +501,7 @@ No public DDS1/DDS2 randomizer found (Sept. 2026).
 
 ## 7. Log
 
+- **2026-09-27** — v8 (1.2.0): option `[bosses] unique_skills = "keep" | "power"` (`--boss-unique-skills`): power of the 14 unique boss skills on a continuous level curve (k measured on the ordinary species); writes SKILL.TBL (power only). 1005 tests. ✅ Validated in game (seed 35, Seraph Lore 64 % applied exactly).
 - **2026-09-27** — v7 (1.1.0): option `[bosses] hp = "curve" | "place"` (`--boss-hp`); spoiler: Atlus line breaks (`_`) of affinity texts shown as " · ". Showcase seed 155 found by scanning 5,000 seeds in memory (Garuda and Nidhoggr in the first zone, Beelzebub as the first boss). 983 tests.
 - **2026-09-26** — Project translated to English (options, command line, messages, spoiler, code, tests, scripts, docs, NOTES). Option names in English (`[enemies]`, `[enemy_skills]`, `[affinities]`, `[bosses]`, `[mantras]`, `[chests]`, `[shops]`; modes `shuffle` / `random` / `original`, `adapt`, `tiered`); `presets/default.toml`; random stream names kept, so a seed gives the same ISO as before (checked byte for byte on seed 2523). `eval_balance.py` and `test_boss.py` fixed.
 - **2026-09-26** — Public export: `scripts/export_public.py` (new repository without history, without CLAUDE.md nor raw notes, first name replaced, leak check); export checked (install from scratch, same ISO byte for byte for a given seed, tests skipped without an ISO).
@@ -701,3 +709,13 @@ ISO: `python -m randomizer iso/dds1_us.iso work/dds1_showcase.iso --seed 155 --b
 **Analysis (Claude)**: ✅ **boss HP option validated in game**. Analyze screen: "Fiend Beelzebub", every field "?" (Analyze only shows what the player already knows: a boss not defeated yet shows nothing, so Analyze cannot be used for boss checks). Savestate 4 read back (`eeMemory.bin` is compressed with zstd, method 93: `unzip` skips it silently, Python's `zipfile` reads it): battle unit at 0x00EBE980 = **id 272, HP 600/600**, MP 564/564, level 8, stats 10/12/18/6/8 = record 272 of the ISO; the UNIT.TBL record in RAM (0x00F74F80 + 272 × 0x4C + 4) also holds 0x0258 = 600.
 - The battle unit was at 0x00EBE980, not at the enemy addresses seen in the first battle (0x00EBEC80…): confirms the pool of slots (section "Battle units").
 - Context (the tester's screenshot run, "curve" mode): with the starting party and skills, Beelzebub at 1,001 HP was not beatable without grinding first; this is why the option exists.
+
+### Unique skills test — seed 35, Usas in Hayagriva's place, Seraph Lore 80 % → 64 %
+
+ISO: `python -m randomizer iso/dds1_us.iso work/dds1_test.iso --seed 35 --boss-hp place --boss-unique-skills power` (CRC D6083442). Usas level 8, 600 HP, Unicorn 301 reinforcements level 8; SKILL.TBL power of Seraph Lore (428) = 64 instead of 80. Cold boot, memory card save before the first boss (any seed: a memory card save holds no table).
+Expected: in phase 2, Seraph Lore removes **64 %** of each character's current HP (🟡 "percentage of the current HP") instead of 80 %. Savestate just before Usas casts it and just after: HP read back in RAM (battle units +0x26).
+
+**Analysis (Claude)**: ✅ **unique skills option validated in game, and the game reads the power in SKILL.TBL**. Savestates read back (battle units, +0x26 current HP): Serph 38 → 14, Heat 54 → 20, Argilla 58 → 21, i.e. 24, 34 and 37 HP removed = **floor(current HP × 0.64)** for all three (38 × 0.64 = 24.3, 54 × 0.64 = 34.6, 58 × 0.64 = 37.1); the original 80 % would have left 8, 11 and 12 HP. Usas (303/600) and the Unicorn (171/171) unchanged between the two savestates: nothing else happened. Seraph Lore's record is in RAM at 0x00F70D20 with power 64 (SKILL.TBL loaded as is, like the other tables).
+- ✅ SKILL.TBL +0x18 = power **read by the game** (was 🟡 "consistent progression").
+- ✅ Nature 8 = percentage of the **current** HP, rounded down (the max HP would give 50 × 0.64 = 32 for Serph, not 24).
+- Party battle units at 0x00EBDF00 / 0x00EBE280 / 0x00EBE600, Usas 0x00EBE980, Unicorn 0x00EBED00 (stride 0x380, +0x08 = 4…8): other addresses than in the first battle, consistent with the pool of slots.

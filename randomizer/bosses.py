@@ -6,7 +6,10 @@ place, damage and percentage spells brought to their rank in the record, the AI 
 Unique skills (Seraph Lore…) do not change (tester's choice, boss test 2).
 HP: on the level curve by default (a sturdy boss stays sturdy); option hp = "place": the new boss takes
 the HP of the boss it replaces (level, stats, skills and rewards unchanged; no random draw, so the rest of
-the seed is identical). The boss battle number
+the seed is identical).
+Unique skills: kept by default; option unique_skills = "power": the power of a damage or percentage
+skill that only this boss uses (and no mantra) follows the level change on a continuous curve,
+power × (new level / old level)^k, k measured on the ordinary species' skills (see UNIQUE_K). The boss battle number
 (+0x26) stays the one of the place: the story continues from it (validated in game, boss test 2).
 
 Reinforcements: a summoned unit reserved to the boss (in no encounter, summoned by it alone) is
@@ -17,14 +20,20 @@ summoned unit makes the boss ineligible.
 import random
 from dataclasses import dataclass, field
 
-from .enemies import (Result, own_script, raise_mp, random_encounters, rescale_unit, species_pool)
+from .enemies import (Result, actions, own_script, raise_mp, random_encounters, rescale_unit, species_pool)
 from .scaling import fit
 from .skills import families
-from .tables import AiTable, Encounters, Skill, Unit, UnitTable
+from .tables import AiTable, Encounters, Skill, SkillTable, Unit, UnitTable
 
 MIN_HP = 1000            # without a boss number (+0x26), threshold telling a boss from an event battle
 SPECIAL = 0xFF           # UNIT +0x16: special unit (boss, NPC)
 PLACEHOLDER_HP = 32767   # placeholder HP (battle that cannot be won)
+# Exponent k of "power ≈ c × level^k", log-log fit on the (species level, skill power) pairs of the 90
+# ordinary species' AI (original game; NOTES "Unique boss skills"): magic on all targets 0.71 (R² 0.52),
+# on one target 0.39 (R² 0.49), percentage 0.24 (R² 0.50), physical 0.21 (R² 0.11: weak, powers also
+# depend on hits and HP cost).
+UNIQUE_K = {"all": 0.71, "one": 0.39, "percent": 0.24, "physical": 0.21}
+DAMAGE, PERCENT = 1, 8
 
 # Places left untouched, with the reason (encounter -> reason).
 EXCLUDED_ENCOUNTERS = {
@@ -40,6 +49,7 @@ class BossResult:
     reinforcements: dict[int, list[tuple[int, int]]] = field(default_factory=dict)  # boss -> [(summoned, level)]
     summons: dict[int, list[tuple[int, int]]] = field(default_factory=dict)         # boss -> [(old, new)]
     units: Result | None = None                                        # rewritten records (spoiler)
+    unique: dict[int, tuple[int, int, int]] = field(default_factory=dict)  # skill -> (boss, old power, new)
 
 
 def _summoned(ai: AiTable, unit: int) -> set[int]:
@@ -141,7 +151,57 @@ def randomize_bosses(enc: Encounters, table: UnitTable, ai: AiTable, units: list
     return res
 
 
-def spoiler(res: BossResult, units: list[Unit], table: UnitTable) -> str:
+def _uses(ai: AiTable, unit: int) -> set[int]:
+    """Skills a unit can cast: its AI lists and its own script."""
+    p = own_script(ai, unit)
+    return set(actions(ai, unit)) | ({ai.flow.arg(k) for k in p.casts} if p else set())
+
+
+def _k(s: Skill) -> float:
+    base = s.element - 256 if s.element >= 256 else s.element      # 256 + element: special versions
+    if s.nature == PERCENT:
+        return UNIQUE_K["percent"]
+    if base == 0:
+        return UNIQUE_K["physical"]
+    return UNIQUE_K["all" if s.target else "one"]
+
+
+def unique_power(s: Skill, old_level: int, new_level: int) -> int:
+    """Power of a unique skill whose boss moves from old_level to new_level. A percentage never goes
+    up (it already grows with the target's HP)."""
+    value = round(s.power * (new_level / old_level) ** _k(s))
+    if s.nature == PERCENT:
+        value = min(value, s.power)
+    return max(1, min(value, 0xFFFF))
+
+
+def scale_unique_skills(res: BossResult, skill_table: SkillTable, ai: AiTable, units: list[Unit],
+                        skills: list[Skill], protected: set[int]) -> None:
+    """Option unique_skills = "power". Modifies `skill_table` in place. A skill is rescaled only if it
+    is a damage or percentage skill outside the adaptable families, cast by this boss and by no other
+    unit, and absent from the mantras (`protected`: the party would be affected too)."""
+    fam = families(skills)
+    users: dict[int, set[int]] = {}
+    for u in range(len(units)):
+        for s in _uses(ai, u):
+            users.setdefault(s, set()).add(u)
+    for n, a in res.places:
+        b = res.mapping.get(n)
+        if b is None:
+            continue
+        old, new = units[b].level, units[a].level
+        for s in sorted(_uses(ai, b)):
+            if s >= len(skills) or s in fam or s in protected or users[s] != {b}:
+                continue
+            S = skills[s]
+            if not S.name or S.nature not in (DAMAGE, PERCENT) or S.power <= 0:
+                continue
+            value = unique_power(S, old, new)
+            skill_table.set_power(s, value)
+            res.unique[s] = (b, S.power, value)
+
+
+def spoiler(res: BossResult, units: list[Unit], table: UnitTable, skills: list[Skill] | None = None) -> str:
     lines = ["", f"Bosses: {len(res.mapping)} places shuffled"]
     for n, a in res.places:
         b = res.mapping.get(n)
@@ -156,5 +216,10 @@ def spoiler(res: BossResult, units: list[Unit], table: UnitTable) -> str:
         if b in res.summons:
             line += " | summons " + ", ".join(f"{units[x].name} → {units[y].name}" for x, y in res.summons[b])
         lines.append(line)
+    if res.unique and skills:
+        lines.append("Unique skills (power follows the level of the new place):")
+        for s, (b, p, v) in sorted(res.unique.items(), key=lambda x: (x[1][0], x[0])):
+            unit = " %" if skills[s].nature == PERCENT else ""
+            lines.append(f"  {skills[s].name:<14} {units[b].name:<12} power {p}{unit} → {v}{unit}")
     lines += ["Places left untouched:"] + [f"  encounter {n}: {why}" for n, why in EXCLUDED_ENCOUNTERS.items()]
     return "\n".join(lines) + "\n"

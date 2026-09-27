@@ -3,12 +3,14 @@ from pathlib import Path
 
 import pytest
 
-from randomizer.bosses import EXCLUDED_ENCOUNTERS, randomize_bosses
+from randomizer.bosses import EXCLUDED_ENCOUNTERS, randomize_bosses, scale_unique_skills, unique_power
 from randomizer.enemies import own_script, randomize
 from randomizer.iso import GameISO
 from randomizer.options import Options
 from randomizer.skills import families
-from randomizer.tables import (OFF_BOSS, AiTable, Encounters, UnitTable, read_skills, read_units)
+from randomizer.mantras import ELF, N_MANTRAS, MantraTable
+from randomizer.tables import (OFF_BOSS, OFF_POWER, SKILL_BLOCK, SKILL_SIZE, AiTable, Encounters, SkillTable,
+                               UnitTable, read_skills, read_units, tbl_blocks)
 
 ISO = Path(__file__).resolve().parent.parent / "iso" / "dds1_us.iso"
 pytestmark = pytest.mark.skipif(not ISO.exists(), reason="reference ISO missing")
@@ -151,4 +153,62 @@ def test_hp_option(tmp_path):
     assert Options.from_toml(p).bosses.hp == "place"
     p.write_text('[bosses]\nhp = "low"\n')
     with pytest.raises(ValueError, match="bosses.hp"):
+        Options.from_toml(p)
+
+
+@pytest.fixture(scope="module")
+def skill_data():
+    g = GameISO(ISO)
+    mantras = MantraTable(g.read(ELF))
+    return g.read("battle/SKILL.TBL"), {s for m in range(N_MANTRAS) for s in mantras.get(m).skills}
+
+
+# Boss versions (some names exist twice: Celestial Ray 89 and Fire of Sinai 95 are used by no enemy)
+CELESTIAL_RAY, SERAPH_LORE, FIRE_STORM, FIRE_OF_SINAI, SPIRAL_EDGE = 424, 428, 385, 374, 391
+
+
+def test_unique_power_values(game):
+    """Values of the continuous curve (NOTES "Unique boss skills")."""
+    skills = game[3]
+    assert skills[CELESTIAL_RAY].name == "Celestial Ray" and skills[SPIRAL_EDGE].name == "Spiral Edge"
+    assert unique_power(skills[CELESTIAL_RAY], 85, 8) == 47      # Huang Long as the first boss: 250 -> 47
+    assert unique_power(skills[SERAPH_LORE], 20, 8) == 64        # percentage: 80 % -> 64 %
+    assert unique_power(skills[SERAPH_LORE], 20, 55) == 80       # a percentage never goes up
+    assert unique_power(skills[FIRE_STORM], 8, 55) == 177        # early boss placed late
+    assert unique_power(skills[FIRE_OF_SINAI], 80, 80) == 90
+
+
+@pytest.mark.parametrize("seed", SEEDS)
+def test_unique_skills_power(game, skill_data, seed):
+    """Only the power (u16 +0x18) of eligible skills changes in SKILL.TBL: cast by one boss only, absent
+    from the mantras, damage or percentage; never stronger when the boss moves down, never weaker when it
+    moves up; everything else (encounters, records, AI) identical to "keep"."""
+    units, skills = game[2], game[3]
+    data, protected = skill_data
+    k_enc, k_table, k_ai, _ = run(game, seed, with_enemies=True)
+    enc, table, ai, res = run(game, seed, with_enemies=True)
+    st = SkillTable(data)
+    scale_unique_skills(res, st, ai, units, skills, protected)
+    assert enc.data == k_enc.data and table.data == k_table.data and ai.data == k_ai.data
+    off, _ = tbl_blocks(bytearray(data))[SKILL_BLOCK]
+    allowed = {off + s * SKILL_SIZE + OFF_POWER + i for s in res.unique for i in (0, 1)}
+    assert all(i in allowed for i, (x, y) in enumerate(zip(data, st.data)) if x != y)
+    assert SPIRAL_EDGE not in res.unique                                # shared by the 3 Camazotz
+    assert not set(res.unique) & protected
+    place = {res.mapping[n]: a for n, a in res.places}
+    for s, (b, old, new) in res.unique.items():
+        assert skills[s].nature in (1, 8) and st.power(s) == new and old == skills[s].power
+        down = units[place[b]].level < units[b].level
+        assert new <= old if down else new >= old
+        if skills[s].nature == 8:
+            assert new <= old
+
+
+def test_unique_skills_option(tmp_path):
+    assert Options().bosses.unique_skills == "keep"
+    p = tmp_path / "p.toml"
+    p.write_text('[bosses]\nunique_skills = "power"\n')
+    assert Options.from_toml(p).bosses.unique_skills == "power"
+    p.write_text('[bosses]\nunique_skills = "half"\n')
+    with pytest.raises(ValueError, match="bosses.unique_skills"):
         Options.from_toml(p)

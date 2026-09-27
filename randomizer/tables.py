@@ -144,6 +144,7 @@ def read_units(unit_tbl: bytes, msg_tbl: bytes) -> list[Unit]:
 
 MSG_SKILL_NAMES = (7, 17)
 SKILL_ELEM_BLOCK, SKILL_BLOCK, SKILL_SIZE = 0, 1, 0x38
+OFF_POWER = 0x18                     # u16 power (nature 8: the percentage) 🟡
 
 
 @dataclass(frozen=True)
@@ -181,8 +182,23 @@ def read_skills(skill_tbl: bytes, msg_tbl: bytes) -> list[Skill]:
         skills.append(Skill(i, names[i] if i < len(names) else "",
                             struct.unpack_from("<H", d, elem_off + 2 * i)[0],
                             d[e + 0x03], d[e + 0x04], d[e + 0x08], (d[e + 0x14], d[e + 0x15]), d[e + 0x16],
-                            struct.unpack_from("<H", d, e + 0x18)[0], (d[e + 0x24], d[e + 0x26])))
+                            struct.unpack_from("<H", d, e + OFF_POWER)[0], (d[e + 0x24], d[e + 0x26])))
     return skills
+
+
+class SkillTable:
+    """Editable SKILL.TBL in memory. Only the power of block-1 records is ever written (option
+    [bosses] unique_skills = "power"): a skill is shared by every unit that uses it."""
+
+    def __init__(self, data: bytes):
+        self.data = bytearray(data)
+        self._off, _ = tbl_blocks(self.data)[SKILL_BLOCK]
+
+    def power(self, i: int) -> int:
+        return struct.unpack_from("<H", self.data, self._off + i * SKILL_SIZE + OFF_POWER)[0]
+
+    def set_power(self, i: int, value: int) -> None:
+        struct.pack_into("<H", self.data, self._off + i * SKILL_SIZE + OFF_POWER, value)
 
 
 # --- AICALC.TBL block 0: AI, one 348-byte row per unit (NOTES.md, "AICALC") ---

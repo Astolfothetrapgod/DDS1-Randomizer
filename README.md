@@ -82,7 +82,7 @@ python -m randomizer original.iso randomized.iso --preset my_preset.toml
 Command-line options override the file. `python -m randomizer --help` lists them all:
 `--level-spread`, `--allow-identity`, `--no-scaling`, `--no-enemy-shuffle`,
 `--enemy-skills adapt|random|original`, `--affinities shuffle|random|original`, `--protect-physical`,
-`--no-bosses`, `--boss-hp curve|place`, `--mantras tiered|random|original`, `--no-heal-guarantee`, `--chests shuffle|random|original`,
+`--no-bosses`, `--boss-hp curve|place`, `--boss-unique-skills keep|power`, `--mantras tiered|random|original`, `--no-heal-guarantee`, `--chests shuffle|random|original`,
 `--shops tiered|random|original`, `--verify-iso`, `--version`.
 
 ## Playing
@@ -99,6 +99,8 @@ Command-line options override the file. `python -m randomizer --help` lists them
 - Moved bosses keep their **unique skills**: a late-game boss placed early stays tough, even rescaled. By
   default their HP also follows the level curve (Beelzebub as the first boss: 1,001 HP instead of 600). For an
   easier game, `[bosses] hp = "place"` (or `--boss-hp place`) gives each boss the HP of the boss it replaces.
+  `[bosses] unique_skills = "power"` (or `--boss-unique-skills power`) also brings their unique skills
+  (Seraph Lore, Celestial Ray…) to the level of their new place.
 - **Mantra prices** are not changed.
 - Not much tested in game yet: the Karma Temple bonuses, and a full playthrough from start to finish.
   Feedback is welcome.
