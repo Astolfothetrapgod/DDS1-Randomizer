@@ -3,7 +3,10 @@
 Each boss place (scripted encounter) receives another boss, rescaled to the level of the place:
 HP/MP/stats on the level curve (value ≈ c × level^k, like ordinary enemies), Karma and Macca of the
 place, damage and percentage spells brought to their rank in the record, the AI lists and the script.
-Unique skills (Seraph Lore…) do not change (tester's choice, boss test 2). The boss battle number
+Unique skills (Seraph Lore…) do not change (tester's choice, boss test 2).
+HP: on the level curve by default (a sturdy boss stays sturdy); option hp = "place": the new boss takes
+the HP of the boss it replaces (level, stats, skills and rewards unchanged; no random draw, so the rest of
+the seed is identical). The boss battle number
 (+0x26) stays the one of the place: the story continues from it (validated in game, boss test 2).
 
 Reinforcements: a summoned unit reserved to the boss (in no encounter, summoned by it alone) is
@@ -85,7 +88,7 @@ def boss_places(enc: Encounters, table: UnitTable, ai: AiTable, units: list[Unit
 
 
 def randomize_bosses(enc: Encounters, table: UnitTable, ai: AiTable, units: list[Unit],
-                     skills: list[Skill] | None, seed: int) -> BossResult:
+                     skills: list[Skill] | None, seed: int, hp: str = "curve") -> BossResult:
     """Modifies `enc`, `table` and `ai` in place. Call after the enemy shuffle: summons of shuffled
     species target their level after rescaling. `units` = original records (read before any change)."""
     rng = random.Random(f"{seed}-boss")             # stream name frozen: changing it would change every seed
@@ -109,6 +112,10 @@ def randomize_bosses(enc: Encounters, table: UnitTable, ai: AiTable, units: list
         A, B = units[a], units[b]
         res.mapping[n] = b
         rescale_unit(table, ai, B, A.level, A.karma, A.macca, result, fam, lo, hi)
+        if hp == "place":                                    # HP of the old boss, the rest on the curve
+            s = table.get(b)
+            table.set(b, s.level, A.hp, s.mp, s.stats, s.karma, s.macca)
+            result.scaled[b] = table.get(b, B.name)
         for x in sorted(_summoned(ai, b)):
             X = units[x]
             if _reserved(x, b, ai, everywhere - {x}):

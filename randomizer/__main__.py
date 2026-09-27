@@ -56,6 +56,8 @@ def run() -> None:
     ap.add_argument("--affinities", choices=("shuffle", "random", "original"), help="enemy affinities")
     ap.add_argument("--protect-physical", action="store_true", help="never \"null / repel / drain\" on physical")
     ap.add_argument("--no-bosses", action="store_true", help="do not shuffle bosses")
+    ap.add_argument("--boss-hp", choices=("curve", "place"),
+                    help="HP of moved bosses: level curve (default) or HP of the boss they replace (easier)")
     ap.add_argument("--mantras", choices=("tiered", "random", "original"), help="mantra skills")
     ap.add_argument("--no-heal-guarantee", action="store_true",
                     help="guarantee neither Dia at level 1 nor Media at level 15 or lower")
@@ -82,6 +84,8 @@ def run() -> None:
         opts.affinities.protect_physical = True
     if a.no_bosses:
         opts.bosses.shuffle = False
+    if a.boss_hp:
+        opts.bosses.hp = a.boss_hp
     if a.mantras:
         opts.mantras.mode = a.mantras
     if a.no_heal_guarantee:
@@ -119,7 +123,7 @@ def run() -> None:
                        skills if mode != "original" else None, ai, mode)
     aff = randomize_affinities(table, text, species, seed, opts.affinities.mode, opts.affinities.protect_physical)
     # after the enemies: a boss summoning a shuffled species targets its rescaled level
-    boss = randomize_bosses(enc, table, ai, units, skills if mode != "original" else None, seed) \
+    boss = randomize_bosses(enc, table, ai, units, skills if mode != "original" else None, seed, opts.bosses.hp) \
         if opts.bosses.shuffle else None
     skill_names = read_skill_names(msg)
     mantras = MantraTable(game.read(ELF), read_mantra_names(msg))
@@ -144,8 +148,11 @@ def run() -> None:
     out.write(CHEST_FILE, bytes(chests.data))
 
     log = a.dst.with_name(f"{a.dst.stem}_spoiler_{seed}.txt")
+    def shown(lines: list[str]) -> str:
+        # "_" = line break of Atlus texts (shown as such in game): readable separator in the spoiler
+        return " ".join(lines).replace("/_", "/").replace("_", " · ") or "-"
     aff_lines = ["", f"Affinities ({opts.affinities.mode}):"] + [
-        f"  {units[i].name:<16} {' '.join(b) or '-'}  ->  {' '.join(a_) or '-'}" for i, (b, a_) in sorted(aff.items())]
+        f"  {units[i].name:<16} {shown(b)}  ->  {shown(a_)}" for i, (b, a_) in sorted(aff.items())]
     log.write_text(f"DDS1 Randomizer {__version__}\n" + spoiler(result, units, skills, opts.describe())
                    + "\n".join(aff_lines) + "\n"
                    + (boss_spoiler(boss, units, table) if boss else "")

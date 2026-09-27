@@ -22,6 +22,8 @@ Preset file (every key is optional; see presets/default.toml for the commented v
 
     [bosses]
     shuffle = true              # shuffle single-unit bosses (rescaled to their new place)
+    hp = "curve"                # "curve": HP on the level curve (a sturdy boss stays sturdy)
+                                # "place": HP of the boss it replaces (easier: late bosses placed early)
 
     [mantras]
     mode = "tiered"             # "tiered": skills redistributed between mantras of similar required level
@@ -48,9 +50,9 @@ from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
 
 
-def _check(section: str, mode: str, allowed: tuple[str, ...]) -> None:
+def _check(section: str, mode: str, allowed: tuple[str, ...], key: str = "mode") -> None:
     if mode not in allowed:
-        raise ValueError(f"{section}.mode: {mode!r} (expected " + ", ".join(f'"{m}"' for m in allowed) + ")")
+        raise ValueError(f"{section}.{key}: {mode!r} (expected " + ", ".join(f'"{m}"' for m in allowed) + ")")
 
 
 @dataclass
@@ -81,6 +83,10 @@ class Affinities:
 @dataclass
 class Bosses:
     shuffle: bool = True
+    hp: str = "curve"
+
+    def __post_init__(self) -> None:
+        _check("bosses", self.hp, ("curve", "place"), "hp")
 
 
 @dataclass

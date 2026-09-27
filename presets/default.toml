@@ -25,6 +25,9 @@ protect_physical = false    # true: never "null / repel / drain" on physical
 shuffle = true              # true: single-unit bosses change places, rescaled to the level of their new place
                             #   (HP/stats on the level curve, damage spells adapted, reserved reinforcements
                             #   rescaled; unique skills kept)
+hp = "curve"                # "curve": HP on the level curve (a sturdy boss stays sturdy: Beelzebub as the
+                            #   first boss is very hard)
+                            # "place": HP of the boss it replaces (easier; level, stats, skills unchanged)
 
 [mantras]
 mode = "tiered"             # "tiered": skills redistributed between mantras of similar required level

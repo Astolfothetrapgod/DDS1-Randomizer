@@ -14,7 +14,7 @@ and distributes no game files**: without your ISO, it does nothing.
 | Enemies of random battles | shuffled, rescaled to the level of the area (HP, MP, stats, rewards) | adjustable level spread, no rescaling, disabled |
 | Enemy skills | spells adapted to the new level (record, AI and scripts) | random (same type), original |
 | Enemy affinities | shuffled (Analyze text rewritten) | random, original, never immune to physical |
-| Bosses | the 24 single-unit bosses change places, rescaled to their new place (reinforcements included) | disabled |
+| Bosses | the 24 single-unit bosses change places, rescaled to their new place (reinforcements included) | HP of the replaced boss (easier), disabled |
 | Mantras (party skills) | redistributed between mantras of similar level; Dia and Media guaranteed early | fully random, no guarantee, original |
 | Chests | contents shuffled between chests of the same type | random, original |
 | Shops and Karma Temple bonuses | items replaced by items of similar value, Ration guaranteed | random, original |
@@ -82,7 +82,7 @@ python -m randomizer original.iso randomized.iso --preset my_preset.toml
 Command-line options override the file. `python -m randomizer --help` lists them all:
 `--level-spread`, `--allow-identity`, `--no-scaling`, `--no-enemy-shuffle`,
 `--enemy-skills adapt|random|original`, `--affinities shuffle|random|original`, `--protect-physical`,
-`--no-bosses`, `--mantras tiered|random|original`, `--no-heal-guarantee`, `--chests shuffle|random|original`,
+`--no-bosses`, `--boss-hp curve|place`, `--mantras tiered|random|original`, `--no-heal-guarantee`, `--chests shuffle|random|original`,
 `--shops tiered|random|original`, `--verify-iso`, `--version`.
 
 ## Playing
@@ -96,7 +96,9 @@ Command-line options override the file. `python -m randomizer --help` lists them
 
 ## Known limitations
 
-- Moved bosses keep their **unique skills**: a late-game boss placed early stays tough, even rescaled.
+- Moved bosses keep their **unique skills**: a late-game boss placed early stays tough, even rescaled. By
+  default their HP also follows the level curve (Beelzebub as the first boss: 1,001 HP instead of 600). For an
+  easier game, `[bosses] hp = "place"` (or `--boss-hp place`) gives each boss the HP of the boss it replaces.
 - **Mantra prices** are not changed.
 - Not much tested in game yet: the Karma Temple bonuses, and a full playthrough from start to finish.
   Feedback is welcome.

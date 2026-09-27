@@ -23,12 +23,12 @@ def game():
             g.read("battle/AICALC.TBL"))
 
 
-def run(game, seed, with_enemies=False):
+def run(game, seed, with_enemies=False, hp="curve"):
     enc_data, unit_data, units, skills, ai_data = game
     enc, table, ai = Encounters(enc_data), UnitTable(unit_data), AiTable(ai_data)
     if with_enemies:
         randomize(enc, table, units, seed, None, skills, ai)
-    return enc, table, ai, randomize_bosses(enc, table, ai, units, skills, seed)
+    return enc, table, ai, randomize_bosses(enc, table, ai, units, skills, seed, hp)
 
 
 def test_places(game):
@@ -122,3 +122,33 @@ def test_determinism_and_option(game, tmp_path):
     p = tmp_path / "p.toml"
     p.write_text("[bosses]\nshuffle = false\n")
     assert Options.from_toml(p).bosses.shuffle is False
+
+
+@pytest.mark.parametrize("seed", SEEDS)
+def test_hp_of_the_place(game, seed):
+    """hp = "place": each moved boss has the HP of the boss it replaces; everything else (mapping, level,
+    MP, stats, rewards, AI, encounters, other units) is identical to the "curve" mode."""
+    units = game[2]
+    c_enc, c_table, c_ai, c_res = run(game, seed, with_enemies=True)
+    p_enc, p_table, p_ai, p_res = run(game, seed, with_enemies=True, hp="place")
+    assert p_res.mapping == c_res.mapping and p_enc.data == c_enc.data and p_ai.data == c_ai.data
+    moved = set()
+    for n, a in p_res.places:
+        b = p_res.mapping[n]
+        moved.add(b)
+        s, c = p_table.get(b), c_table.get(b)
+        assert s.hp == units[a].hp
+        assert (s.level, s.mp, s.stats, s.karma, s.macca) == (c.level, c.mp, c.stats, c.karma, c.macca)
+    for i in range(len(units)):
+        if i not in moved:
+            assert p_table.get(i) == c_table.get(i)
+
+
+def test_hp_option(tmp_path):
+    assert Options().bosses.hp == "curve"
+    p = tmp_path / "p.toml"
+    p.write_text('[bosses]\nhp = "place"\n')
+    assert Options.from_toml(p).bosses.hp == "place"
+    p.write_text('[bosses]\nhp = "low"\n')
+    with pytest.raises(ValueError, match="bosses.hp"):
+        Options.from_toml(p)
